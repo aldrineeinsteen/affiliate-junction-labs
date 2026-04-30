@@ -27,6 +27,7 @@ This guide covers deploying the Affiliate Junction Demo on IBM Cloud Kubernetes 
 ### IBM Cloud Resources
 
 - IBM Cloud account with appropriate permissions
+- **Resource Group**: `itz-wxd-xxxx` (ID: `7769949db67648a8ad80241b49c9c354`)
 - IBM Cloud IKS cluster (3 worker nodes, bx2.4x16 recommended)
 - watsonx.data instance with Presto engine
 - Mission Control instance for HCD deployment
@@ -68,7 +69,8 @@ cd affiliate-junction-labs
 
 # 2. Set up IBM Cloud credentials
 ibmcloud login --sso
-ibmcloud target -r us-south -g default
+ibmcloud resource groups # List resource groups
+ibmcloud target -r eu-de -g itz-wxd-xxx
 
 # 3. Run automated setup (requires Mission Control license)
 ./setup.sh --domain affiliate-junction \
@@ -384,8 +386,8 @@ kubectl delete namespace affiliate-junction
 ./setup.sh --domain affiliate-junction --phase cleanup
 
 # Or manually delete resources
-ibmcloud ks cluster rm <cluster-name>
-ibmcloud resource service-instance-delete <watsonx-data-instance>
+ibmcloud ks cluster rm <cluster-name> -g itz-wxd-69f1c82604915752070c1b
+ibmcloud resource service-instance-delete <watsonx-data-instance> -g itz-wxd-69f1c82604915752070c1b
 ```
 
 ---

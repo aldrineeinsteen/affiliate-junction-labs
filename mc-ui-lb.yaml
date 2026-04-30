@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mission-control-ui-lb
+  namespace: mission-control
+  labels:
+    app: mission-control-ui-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app: mission-control-ui
+  ports:
+    - name: https
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

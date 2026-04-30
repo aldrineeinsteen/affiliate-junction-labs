@@ -423,10 +423,10 @@ kubectl get svc web-ui -n affiliate-junction
 1. **Check IBM Cloud LoadBalancer**
    ```bash
    # List LoadBalancers
-   ibmcloud ks nlb-dns ls --cluster <cluster-name>
-   
+   ibmcloud ks nlb-dns ls --cluster <cluster-name> -g itz-wxd-69f1c82604915752070c1b
+
    # Check cluster workers
-   ibmcloud ks workers --cluster <cluster-name>
+   ibmcloud ks workers --cluster <cluster-name> -g itz-wxd-69f1c82604915752070c1b
    ```
 
 2. **Use NodePort temporarily**

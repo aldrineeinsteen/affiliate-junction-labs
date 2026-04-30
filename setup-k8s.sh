@@ -131,16 +131,43 @@ need_cmd() {
 usage() {
   cat <<'USAGE'
 Usage:
-  ./setup.sh --domain banking --mission-control-license "Input" [--phase validate|cloud|mission-control|hcd|presto|domain|deploy|test|all]
+  ./setup-k8s.sh --domain <domain> --mission-control-license "<LICENSE>" [--phase <phase>]
 
-Options:
-  --domain <domain>                    Domain descriptor under domains/<domain>/domain.yaml.
-  --mission-control-license <license>  Mission Control / Replicated license ID for cloud setup phases.
-  --phase <phase>                      validate, cloud, mission-control, hcd, presto, domain, deploy, test, or all. Default: all.
+Required:
+  --domain <domain>                    Domain name (e.g., banking, affiliate-junction)
+  --mission-control-license <license>  Mission Control license ID (required for cloud/mission-control/hcd/platform/all phases)
+
+Optional:
+  --phase <phase>                      Execution phase (default: all)
+                                       Phases:
+                                         validate        - Validate configuration and prerequisites
+                                         cloud           - Provision IBM Cloud infrastructure (VPC, IKS, Mission Control, HCD)
+                                         mission-control - Install/upgrade Mission Control only
+                                         hcd             - Create demo HCD database only
+                                         presto          - Configure Presto catalog
+                                         build           - Build and push container image to IBM Cloud Container Registry
+                                         app-deploy      - Deploy application to Kubernetes (ConfigMap, Secret, workloads)
+                                         domain          - Show domain configuration (dry-run)
+                                         deploy          - Deploy domain manifests to Kubernetes (legacy)
+                                         test            - Run connectivity tests
+                                         platform        - Full platform setup (cloud + mission-control, no demo DB)
+                                         all             - Execute all phases (default)
+
   -h, --help                           Show this help.
 
 Environment variables are still supported for existing workshop settings.
 Secrets belong in local .env.* files or Kubernetes Secrets, not in Git.
+
+Examples:
+  # Full deployment (infrastructure + application)
+  ./setup-k8s.sh --domain affiliate-junction --mission-control-license "LICENSE" --phase all
+
+  # Build and deploy application only (after infrastructure is ready)
+  ./setup-k8s.sh --domain affiliate-junction --phase build
+  ./setup-k8s.sh --domain affiliate-junction --phase app-deploy
+
+  # Infrastructure only
+  ./setup-k8s.sh --domain affiliate-junction --mission-control-license "LICENSE" --phase platform
 USAGE
 }
 
@@ -190,7 +217,7 @@ parse_args() {
 
 validate_args() {
   case "$PHASE" in
-    validate|cloud|mission-control|hcd|presto|domain|deploy|test|all|platform)
+    validate|cloud|mission-control|hcd|presto|build|app-deploy|domain|deploy|test|all|platform)
       ;;
     *)
       echo "Invalid phase: $PHASE"
@@ -259,8 +286,209 @@ run_presto_phase() {
   scripts/create_presto_catalog.sh
 }
 
+run_build_phase() {
+  log "Build phase - Building container image"
+  
+  # Determine container tool (podman or docker)
+  if command -v podman &> /dev/null; then
+    CONTAINER_TOOL="podman"
+  elif command -v docker &> /dev/null; then
+    CONTAINER_TOOL="docker"
+  else
+    echo "ERROR: Neither podman nor docker found. Please install one of them."
+    exit 1
+  fi
+  
+  log "Using container tool: $CONTAINER_TOOL"
+  
+  # Get IBM Cloud Container Registry info
+  ICR_REGION="${ICR_REGION:-us.icr.io}"
+  ICR_NAMESPACE="${ICR_NAMESPACE:-affiliate-junction}"
+  IMAGE_NAME="${IMAGE_NAME:-affiliate-junction-demo}"
+  IMAGE_TAG="${IMAGE_TAG:-latest}"
+  
+  FULL_IMAGE="${ICR_REGION}/${ICR_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+  
+  log "Building image: $FULL_IMAGE"
+  
+  # Build the image
+  $CONTAINER_TOOL build -t "$FULL_IMAGE" -f Dockerfile .
+  
+  if [ $? -ne 0 ]; then
+    echo "ERROR: Image build failed"
+    exit 1
+  fi
+  
+  log "Image built successfully: $FULL_IMAGE"
+  
+  # Login to IBM Cloud Container Registry
+  log "Logging into IBM Cloud Container Registry..."
+  ibmcloud cr login
+  
+  if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to login to IBM Cloud Container Registry"
+    exit 1
+  fi
+  
+  # Create namespace if it doesn't exist
+  log "Ensuring ICR namespace exists: $ICR_NAMESPACE"
+  ibmcloud cr namespace-add "$ICR_NAMESPACE" 2>/dev/null || true
+  
+  # Push the image
+  log "Pushing image to registry..."
+  $CONTAINER_TOOL push "$FULL_IMAGE"
+  
+  if [ $? -ne 0 ]; then
+    echo "ERROR: Image push failed"
+    exit 1
+  fi
+  
+  log "Image pushed successfully: $FULL_IMAGE"
+  
+  # Save image reference for deploy phase
+  echo "export CONTAINER_IMAGE=\"$FULL_IMAGE\"" > .env.image
+  
+  log "Build phase complete. Image: $FULL_IMAGE"
+}
+
+run_app_deploy_phase() {
+  log "Application deployment phase"
+  
+  # Load image reference if available
+  if [ -f .env.image ]; then
+    source .env.image
+  fi
+  
+  # Verify domain config exists
+  DOMAIN_CONFIG="config/domains/$DOMAIN/domain.yaml"
+  if [ ! -f "$DOMAIN_CONFIG" ]; then
+    echo "ERROR: Domain configuration not found: $DOMAIN_CONFIG"
+    exit 1
+  fi
+  
+  log "Loading domain configuration from: $DOMAIN_CONFIG"
+  
+  # Create namespace if it doesn't exist
+  NAMESPACE=$(grep "namespace:" "$DOMAIN_CONFIG" | head -1 | awk '{print $2}')
+  if [ -z "$NAMESPACE" ]; then
+    NAMESPACE="$DOMAIN"
+  fi
+  
+  log "Creating namespace: $NAMESPACE"
+  kubectl create namespace "$NAMESPACE" 2>/dev/null || true
+  
+  # Create ConfigMap from domain config
+  log "Creating ConfigMap from domain configuration..."
+  kubectl create configmap "${DOMAIN}-config" \
+    --from-file=config.yaml="$DOMAIN_CONFIG" \
+    --namespace="$NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  
+  # Create Secret from environment files
+  log "Creating Secret from environment configuration..."
+  
+  # Check for domain-specific env files
+  ENV_HCD="config/domains/$DOMAIN/.env.hcd"
+  ENV_PRESTO="config/domains/$DOMAIN/.env.presto"
+  ENV_WEB="config/domains/$DOMAIN/.env.web"
+  
+  # Build secret data
+  SECRET_DATA=""
+  
+  if [ -f "$ENV_HCD" ]; then
+    log "Loading HCD credentials from: $ENV_HCD"
+    while IFS='=' read -r key value; do
+      # Skip comments and empty lines
+      [[ "$key" =~ ^#.*$ ]] && continue
+      [[ -z "$key" ]] && continue
+      # Remove quotes from value
+      value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+      SECRET_DATA="$SECRET_DATA --from-literal=$key=$value"
+    done < "$ENV_HCD"
+  fi
+  
+  if [ -f "$ENV_PRESTO" ]; then
+    log "Loading Presto credentials from: $ENV_PRESTO"
+    while IFS='=' read -r key value; do
+      [[ "$key" =~ ^#.*$ ]] && continue
+      [[ -z "$key" ]] && continue
+      value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+      SECRET_DATA="$SECRET_DATA --from-literal=$key=$value"
+    done < "$ENV_PRESTO"
+  fi
+  
+  if [ -f "$ENV_WEB" ]; then
+    log "Loading Web credentials from: $ENV_WEB"
+    while IFS='=' read -r key value; do
+      [[ "$key" =~ ^#.*$ ]] && continue
+      [[ -z "$key" ]] && continue
+      value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+      SECRET_DATA="$SECRET_DATA --from-literal=$key=$value"
+    done < "$ENV_WEB"
+  fi
+  
+  if [ -n "$SECRET_DATA" ]; then
+    eval "kubectl create secret generic ${DOMAIN}-secrets $SECRET_DATA --namespace=$NAMESPACE --dry-run=client -o yaml | kubectl apply -f -"
+  else
+    echo "WARNING: No environment files found. Secret not created."
+    echo "Expected files: $ENV_HCD, $ENV_PRESTO, $ENV_WEB"
+  fi
+  
+  # Update kustomization with image if provided
+  if [ -n "${CONTAINER_IMAGE:-}" ]; then
+    log "Updating kustomization with image: $CONTAINER_IMAGE"
+    
+    KUSTOMIZATION="k8s/overlays/$DOMAIN/kustomization.yaml"
+    if [ -f "$KUSTOMIZATION" ]; then
+      # Check if images section exists
+      if grep -q "^images:" "$KUSTOMIZATION"; then
+        # Update existing images section
+        sed -i.bak "/^images:/,/^[^ ]/ s|newName:.*|newName: ${CONTAINER_IMAGE%:*}|" "$KUSTOMIZATION"
+        sed -i.bak "/^images:/,/^[^ ]/ s|newTag:.*|newTag: ${CONTAINER_IMAGE##*:}|" "$KUSTOMIZATION"
+      else
+        # Add images section
+        cat >> "$KUSTOMIZATION" <<EOF
+
+images:
+  - name: affiliate-junction-demo
+    newName: ${CONTAINER_IMAGE%:*}
+    newTag: ${CONTAINER_IMAGE##*:}
+EOF
+      fi
+    fi
+  fi
+  
+  # Deploy application using kustomize
+  log "Deploying application to namespace: $NAMESPACE"
+  kubectl apply -k "k8s/overlays/$DOMAIN"
+  
+  if [ $? -ne 0 ]; then
+    echo "ERROR: Application deployment failed"
+    exit 1
+  fi
+  
+  log "Application deployed successfully"
+  
+  # Wait for deployment to be ready
+  log "Waiting for web UI deployment to be ready..."
+  kubectl wait --for=condition=available --timeout=300s \
+    deployment/web-ui -n "$NAMESPACE" 2>/dev/null || true
+  
+  # Get service URL
+  log "Getting service URL..."
+  WEB_UI_LB=$(kubectl get svc web-ui-lb -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+  
+  if [ -n "$WEB_UI_LB" ]; then
+    log "Web UI available at: http://${WEB_UI_LB}:10000"
+  else
+    log "Web UI service created. Use 'kubectl get svc -n $NAMESPACE' to get the LoadBalancer URL"
+  fi
+  
+  log "Application deployment phase complete"
+}
+
 run_deploy_phase() {
-  log "Domain deploy phase"
+  log "Legacy deploy phase - use 'app-deploy' for full application deployment"
   kubectl apply -k "k8s/overlays/$DOMAIN"
 }
 
@@ -362,11 +590,19 @@ case "$PHASE" in
     log "Domain deployment phase"
     echo "Domain: $DOMAIN"
     echo "Descriptor: $DOMAIN_DESCRIPTOR"
-    echo "Dry run only. Use scripts/deploy_domain.sh or ./setup.sh --phase deploy after platform setup to apply domain manifests."
+    echo "Dry run only. Use scripts/deploy_domain.sh or ./setup-k8s.sh --phase app-deploy after platform setup to apply domain manifests."
     exit 0
     ;;
   presto)
     run_presto_phase
+    exit 0
+    ;;
+  build)
+    run_build_phase
+    exit 0
+    ;;
+  app-deploy)
+    run_app_deploy_phase
     exit 0
     ;;
   deploy)
@@ -1055,6 +1291,71 @@ kubectl get pods -n "$MC_NAMESPACE"
 kubectl get svc -n "$MC_NAMESPACE"
 
 # ------------------------------------------------------------------------------
+# 19a. Create LoadBalancer for Mission Control UI
+# ------------------------------------------------------------------------------
+
+log "Creating external LoadBalancer service for Mission Control UI"
+
+cat > mc-ui-lb.yaml <<'EOF'
+apiVersion: v1
+kind: Service
+metadata:
+  name: mission-control-ui-lb
+  namespace: mission-control
+  labels:
+    app: mission-control-ui-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app: mission-control-ui
+  ports:
+    - name: https
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+EOF
+
+kubectl apply -f mc-ui-lb.yaml
+
+echo "Waiting for Mission Control UI LoadBalancer endpoint..."
+
+MC_UI_HOST=""
+for i in {1..30}; do
+  MC_UI_HOST=$(
+    kubectl -n "${MC_NAMESPACE}" get svc mission-control-ui-lb \
+      -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true
+  )
+
+  if [ -z "$MC_UI_HOST" ]; then
+    MC_UI_HOST=$(
+      kubectl -n "${MC_NAMESPACE}" get svc mission-control-ui-lb \
+        -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true
+    )
+  fi
+
+  if [ -n "$MC_UI_HOST" ]; then
+    break
+  fi
+
+  echo "Waiting for Mission Control UI LoadBalancer... attempt $i/30"
+  sleep 10
+done
+
+if [ -n "${MC_UI_HOST:-}" ]; then
+  echo "Mission Control UI LoadBalancer endpoint: ${MC_UI_HOST}"
+  cat > .env.mission-control <<EOF
+export MC_UI_HOST="${MC_UI_HOST}"
+export MC_UI_PORT="8080"
+export MC_ADMIN_USER="${MC_ADMIN_USER}"
+export MC_ADMIN_PASSWORD="${MC_ADMIN_PASSWORD}"
+EOF
+  echo "Mission Control connection details written to .env.mission-control"
+else
+  echo "WARNING: Mission Control UI LoadBalancer endpoint not assigned yet."
+  echo "Check with: kubectl -n ${MC_NAMESPACE} get svc mission-control-ui-lb"
+fi
+
+# ------------------------------------------------------------------------------
 # 20. Verify Dex config
 # ------------------------------------------------------------------------------
 
@@ -1245,6 +1546,36 @@ EOF
 
 kubectl apply -f demo-cql-lb.yaml
 
+echo "Ensuring IBM Cloud provider ConfigMap exists..."
+
+# Check if ibm-cloud-provider-data ConfigMap exists
+if ! kubectl get configmap ibm-cloud-provider-data -n kube-system &>/dev/null; then
+  echo "Creating missing ibm-cloud-provider-data ConfigMap..."
+  
+  # Get cluster ID
+  CLUSTER_ID=$(ibmcloud ks cluster get --cluster "${CLUSTER_NAME}" --output json | jq -r '.id' 2>/dev/null || echo "")
+  
+  if [ -n "$CLUSTER_ID" ]; then
+    # Create the ConfigMap
+    kubectl create configmap ibm-cloud-provider-data \
+      --from-literal=cluster-id="$CLUSTER_ID" \
+      -n kube-system
+    
+    echo "ConfigMap created. Restarting cloud provider..."
+    
+    # Restart the cloud provider daemonset if it exists
+    if kubectl get daemonset ibm-cloud-provider -n kube-system &>/dev/null; then
+      kubectl rollout restart daemonset/ibm-cloud-provider -n kube-system
+      echo "Waiting for cloud provider to restart..."
+      sleep 30
+    fi
+  else
+    echo "WARNING: Could not retrieve cluster ID. LoadBalancer may not provision correctly."
+  fi
+else
+  echo "IBM Cloud provider ConfigMap already exists."
+fi
+
 echo "Waiting for external LoadBalancer hostname/IP..."
 
 for i in {1..60}; do
@@ -1293,25 +1624,35 @@ cat <<DONE
 ================================================================================
 Setup complete.
 
-Mission Control UI access:
+Mission Control UI:
 
-  kubectl -n ${MC_NAMESPACE} port-forward svc/mission-control-ui 8080:8080
-
-Then open:
-
-  https://localhost:8080
-
-If your browser complains about the certificate, accept the local/self-signed warning.
-
-Mission Control login:
-
+  URL: https://${MC_UI_HOST:-<pending>}:8080
   Username: ${MC_ADMIN_USER}
   Password: ${MC_ADMIN_PASSWORD}
+
+  Note: Accept the self-signed certificate warning in your browser.
+  
+  Alternative (if LoadBalancer pending):
+    kubectl -n ${MC_NAMESPACE} port-forward svc/mission-control-ui 8080:8080
+    Then open: https://localhost:8080
 
 Demo database superuser:
 
   Username: ${DEMO_SUPERUSER_NAME}
   Password: ${DEMO_SUPERUSER_PASSWORD}
+
+HCD Database Connection:
+
+  Host: ${DEMO_CQL_HOST:-<not-provisioned>}
+  Port: 9042
+  Username: ${DEMO_SUPERUSER_NAME}
+  Password: ${DEMO_SUPERUSER_PASSWORD}
+  
+  Connection string:
+    ${DEMO_CQL_HOST:-<not-provisioned>}:9042
+
+  Test connection:
+    ./scripts/test_hcd_connection.sh
 
 Generated files:
 
