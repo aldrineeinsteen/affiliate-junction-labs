@@ -1,0 +1,56 @@
+# Affiliate Junction Configuration Template
+# Copy this file to config.yaml and customize for your deployment
+
+domain:
+  name: affiliate-junction
+  namespace: affiliate-junction
+  
+application:
+  # Number of synthetic entities to generate
+  advertisers_count: 500
+  publishers_count: 1000
+  cookies_count: 5000
+  
+  # Data retention and generation settings
+  history_mins: 90
+  traffic_min: 5000
+  sales_min: 500
+  sales_buckets_count: 10
+  fraud_cookies_count: 5
+  
+  # Cohort configuration
+  cohorts: "TECH,FASHION,HEALTH,FINANCE,TRAVEL"
+  cohort_same_probability: 0.60
+  cohort_different_probability: 0.20
+  fraud_cross_contamination_probability: 0.05
+  random_cookie_probability: 0.15
+
+web:
+  port: 10000
+  replicas: 2
+  auth_user: watsonx
+  
+databases:
+  hcd:
+    # Kubernetes service name for HCD (will be resolved via DNS)
+    # For IBM Cloud deployment, this will be an external LoadBalancer
+    service_name: hcd-service
+    port: 9042
+    datacenter: datacenter1
+    keyspace: affiliate_junction
+    
+  presto:
+    # Kubernetes service name for Presto (will be resolved via DNS)
+    # For IBM Cloud deployment, this will be watsonx.data endpoint
+    service_name: presto-service
+    port: 8443
+    catalog: iceberg_data
+    schema: affiliate_junction
+    use_ssl: true
+
+schedules:
+  # CronJob schedules (cron format)
+  hcd_to_presto: "*/1 * * * *"      # Every minute
+  presto_to_hcd: "*/1 * * * *"      # Every minute
+  presto_insights: "*/5 * * * *"    # Every 5 minutes
+  presto_cleanup: "0 * * * *"       # Every hour

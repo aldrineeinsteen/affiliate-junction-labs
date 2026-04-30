@@ -1,0 +1,69 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+docs/
+.bob/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# Configuration examples (actual configs come from ConfigMap/Secrets)
+.env
+.env.*
+env-sample
+config/config.yaml
+config/secrets.yaml
+
+# Kubernetes files (not needed in container)
+k8s/
+*.yaml
+*.yml
+
+# Scripts (not needed in container)
+setup.sh
+setup 2.sh
+
+# Service files (systemd, not used in K8s)
+*.service
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db

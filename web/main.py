@@ -171,6 +171,73 @@ async def shutdown_event():
     except Exception as e:
         logger.error(f"Error during connection cleanup: {e}")
 
+# --- Health Check Endpoints (for Kubernetes) ---
+
+@app.get("/health")
+async def health_check():
+    """
+    Liveness probe endpoint for Kubernetes.
+    Returns 200 if the application is running.
+    """
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "healthy",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    )
+
+
+@app.get("/ready")
+async def readiness_check():
+    """
+    Readiness probe endpoint for Kubernetes.
+    Returns 200 if the application is ready to serve traffic.
+    Checks database connectivity.
+    """
+    health_status = {
+        "status": "ready",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checks": {
+            "cassandra": "unknown",
+            "presto": "unknown"
+        }
+    }
+    
+    # Check Cassandra/HCD connection
+    try:
+        session = hcd_operations.get_cassandra_session()
+        if session:
+            health_status["checks"]["cassandra"] = "connected"
+        else:
+            health_status["checks"]["cassandra"] = "disconnected"
+            health_status["status"] = "not_ready"
+    except Exception as e:
+        logger.warning(f"Cassandra health check failed: {e}")
+        health_status["checks"]["cassandra"] = "error"
+        health_status["status"] = "not_ready"
+    
+    # Check Presto connection
+    try:
+        if presto_connection:
+            health_status["checks"]["presto"] = "connected"
+        else:
+            health_status["checks"]["presto"] = "disconnected"
+            health_status["status"] = "not_ready"
+    except Exception as e:
+        logger.warning(f"Presto health check failed: {e}")
+        health_status["checks"]["presto"] = "error"
+        health_status["status"] = "not_ready"
+    
+    # Return 503 if not ready, 200 if ready
+    status_code = 200 if health_status["status"] == "ready" else 503
+    
+    return JSONResponse(
+        status_code=status_code,
+        content=health_status
+    )
+
+
 
 # --- Authentication routes ---
 @app.get("/login", response_class=HTMLResponse)
