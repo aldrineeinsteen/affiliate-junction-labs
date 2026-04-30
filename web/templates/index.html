@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Affiliate Junction | IBM watsonx.data Demo</title>
+  
+  <!-- Common head elements -->
+  {% include 'partials/html_head.html' %}
+
+  <!-- Prism.js CSS for syntax highlighting -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
+  
+  <!-- Index page specific styles -->
+  <link rel="stylesheet" href="/assets/css/index.css">
+</head>
+<body class="bg-light">
+
+<!-- Header -->
+{% include 'partials/header.html' %}
+
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar Navigation (fixed, full height) -->
+    <div class="col-md-3 position-fixed overflow-auto" style="top: 0; left: 0; height: 100vh; z-index: 100;">
+      {% include 'partials/sidebar.html' %}
+    </div>
+    
+    <!-- Main Content Area (9 columns with left offset) -->
+    <div class="col-md-9 offset-md-3">
+      <div class="">
+        <!-- Hero Section -->
+        <div class="hero-section mt-4">
+          <div class="hero-content text-center">
+            <h1 class="hero-title">
+              Affiliate Junction Analytics
+            </h1>
+            <p class="hero-description">
+              Experience real-time affiliate marketing data processing across <strong>IBM watsonx.data</strong> 
+              with dual-write patterns between HCD (Cassandra) and Presto/Iceberg for comprehensive analytics.
+            </p>
+          </div>
+        </div>
+
+        <!-- Key Features Section -->
+        <div class="features-section">
+          <h2 class="section-title text-center">System Architecture</h2>
+          <div class="row">
+            <div class="col-md-4 mb-4">
+              <div class="feature-card h-100">
+                <div class="feature-icon">⚡</div>
+                <h5 class="feature-title">Real-Time Operations</h5>
+                <p class="feature-description">
+                  Live affiliate tracking with HCD (Cassandra) for instant publisher and advertiser insights
+                </p>
+              </div>
+            </div>
+            <div class="col-md-4 mb-4">
+              <div class="feature-card h-100">
+                <div class="feature-icon">📊</div>
+                <h5 class="feature-title">Analytics Engine</h5>
+                <p class="feature-description">
+                  Historical data processing via Presto/Iceberg for comprehensive performance analysis
+                </p>
+              </div>
+            </div>
+            <div class="col-md-4 mb-4">
+              <div class="feature-card h-100">
+                <div class="feature-icon">🔄</div>
+                <h5 class="feature-title">Federated Queries</h5>
+                <p class="feature-description">
+                  Cross-datasource operations combining real-time and analytical data seamlessly
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Flow Visualization -->
+        <div class="data-flow-section mb-3">
+          <h2 class="section-title text-center mb-4">Data Processing Pipeline</h2>
+          <div class="data-flow-diagram">
+            <div class="flow-step">
+              <div class="flow-icon">📈</div>
+              <h6>Traffic Generation</h6>
+              <p>Synthetic affiliate data</p>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">
+              <div class="flow-icon">⚡</div>
+              <h6>HCD (Cassandra)</h6>
+              <p>Real-time operations</p>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">
+              <div class="flow-icon">🔄</div>
+              <h6>ETL Pipeline</h6>
+              <p>Data aggregation</p>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">
+              <div class="flow-icon">📊</div>
+              <h6>Presto/Iceberg</h6>
+              <p>Analytics storage</p>
+            </div>
+          </div>
+        </div>
+          
+          <div id="response" class="demo-response mt-5"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+{% include 'partials/footer.html' %}
+
+<!-- Query Panel -->
+{% include 'partials/query_panel.html' %}
+
+<!-- Partial JavaScript -->
+<script src="/assets/js/partial-query-system.js"></script>
+<script src="/assets/js/partial-sidebar.js"></script>
+
+<!-- Index Page Specific JavaScript -->
+<script src="/assets/js/index.js"></script>
+
+</body>
+</html>

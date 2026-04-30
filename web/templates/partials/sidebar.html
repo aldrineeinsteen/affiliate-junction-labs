@@ -1,0 +1,64 @@
+<!-- Sidebar navigation partial -->
+<div class="mt-4 p-3 bg-white border rounded" _style="height:90vh;">
+  <h5>Advertiser</h5>
+
+  <div class="mb-3">
+    Advertiser dashboards.
+  </div>
+    
+  <nav class="nav flex-column">
+    <!-- Advertisers dropdown -->
+    <div class="mb-3">
+      <select class="form-select" id="advertisersSelect" onchange="onAdvertiserChange()">
+        <option value="">Loading advertisers...</option>
+      </select>
+    </div>
+
+  </nav>
+</div>
+
+<div class="mt-4 p-3 bg-white border rounded" _style="height:90vh;">
+  <h5>Publisher</h5>
+
+  <div class="mb-3">
+    Publisher dashboards.
+  </div>
+    
+  <nav class="nav flex-column">
+    <!-- Publishers dropdown -->
+    <div class="mb-3">
+      <select class="form-select" id="publishersSelect" onchange="onPublisherChange()">
+        <option value="">Loading publishers...</option>
+      </select>
+    </div>
+
+  </nav>
+</div>
+
+<div class="mt-4 p-3 bg-white border rounded" _style="height:90vh;">
+  <h5>Admin</h5>
+  
+  <div class="mb-3">
+    Affiliate Junction Admin persona.
+  </div>
+    
+  <nav class="nav flex-column">
+    <a class="nav-link" href="/fraud">
+      <i class="bi bi-shield-exclamation"></i> Fraud Reporting
+    </a>
+    <!-- <a class="nav-link" href="/payouts">
+      <i class="bi bi-currency-dollar"></i> Payouts
+    </a> -->
+  </nav>
+</div>
+
+<div class="mt-4 p-2 bg-light border rounded">
+  <div class="d-flex align-items-center justify-content-between">
+    <a href="/services" class="text-decoration-none">
+      <small class="text-muted fw-normal">Demo Health</small>
+    </a>
+    <div id="service-health-indicators" class="service-health-grid compact d-flex">
+      <!-- Service health dots will be populated by JavaScript -->
+    </div>
+  </div>
+</div>

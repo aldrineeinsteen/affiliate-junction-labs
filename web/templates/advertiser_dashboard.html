@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Advertiser Dashboard</title>
+  
+  <!-- Common head elements -->
+  {% include 'partials/html_head.html' %}
+
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  
+  <!-- Advertiser Dashboard specific styles -->
+  <link rel="stylesheet" href="/assets/css/advertiser-dashboard.css">
+</head>
+<body class="bg-light" data-advertiser-id="{{ advertiser_id }}">
+
+<!-- Header -->
+{% include 'partials/header.html' %}
+
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar Navigation (fixed, full height) -->
+    <div class="col-md-3 position-fixed overflow-auto" style="top: 0; left: 0; height: 100vh; z-index: 100;">
+      {% include 'partials/sidebar.html' %}
+    </div>
+    
+    <!-- Main Content Area (9 columns with left offset) -->
+    <div class="col-md-9 offset-md-3">
+      <div class="p-3 py-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1>📊 Advertiser Dashboard</h1>
+          <a href="/" class="btn btn-outline-secondary">← Back to Home</a>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="text-center my-5">
+          <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Loading advertiser data...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error" class="alert alert-danger d-none" role="alert">
+          <h4 class="alert-heading">Error</h4>
+          <p id="error-message">Failed to load advertiser data.</p>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboard" class="d-none">
+          <!-- Advertiser Info -->
+          <div class="row mb-4">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title" id="advertiser-name">Advertiser Name</h5>
+                  <p class="card-text">
+                    <span class="badge bg-primary">ID: <span id="advertiser-id">{{ advertiser_id }}</span></span>
+                  </p>
+                  <p class="text-muted small">
+                    <i class="bi bi-clock"></i> Last updated: <span id="last-updated">-</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metrics Cards -->
+          <div class="row">
+            <div class="col-md-6 mb-4">
+              <div class="card border-primary">
+                <div class="card-body position-relative">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="row w-100 align-items-center pb-3">
+                      <div class="col-6">
+                        <h5 class="card-title text-primary mb-0">Total Impressions</h5>
+                      </div>
+                      <div class="col-3 text-center">
+                        <h2 class="display-5 mb-0" id="total-impressions">0</h2>
+                      </div>
+                      <div class="col-3 text-end">
+                        <p class="text-muted small mb-0">Previous 90 minutes</p>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Sparkline Chart for Impressions -->
+                  <div class="position-absolute bottom-0 start-0 end-0" style="height: 40px;">
+                    <canvas id="impressionsSparkline" class="w-100 h-100" width="100" height="30"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card border-success">
+                <div class="card-body position-relative">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="row w-100 align-items-center pb-3">
+                      <div class="col-6">
+                        <h5 class="card-title text-success mb-0">Total Conversions</h5>
+                      </div>
+                      <div class="col-3 text-center">
+                        <h2 class="display-5 mb-0" id="total-conversions">0</h2>
+                      </div>
+                      <div class="col-3 text-end">
+                        <p class="text-muted small mb-0">Previous 90 minutes</p>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Sparkline Chart for Conversions -->
+                  <div class="position-absolute bottom-0 start-0 end-0" style="height: 40px;">
+                    <canvas id="conversionsSparkline" class="w-100 h-100" width="100" height="30"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Time Series Charts -->
+          <div class="row mb-4">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">📈 Performance Over Time</h5>
+                  
+                  <!-- Chart Loading State -->
+                  <div id="chart-loading" class="text-center my-4">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                      <span class="visually-hidden">Loading charts...</span>
+                    </div>
+                    <p class="mt-2 text-muted small">Loading chart data...</p>
+                  </div>
+
+                  <!-- Combined Chart Container -->
+                  <div id="chart-container" class="d-none">
+                    <canvas id="timeSeriesChart" width="400" height="200"></canvas>
+                  </div>
+
+                  <!-- Chart Error State -->
+                  <div id="chart-error" class="alert alert-warning d-none" role="alert">
+                    <h6 class="alert-heading">Chart Data Unavailable</h6>
+                    <p class="mb-0">Unable to load chart data. This may be because there's no recent activity data available.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Additional Info -->
+          <div class="row">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">Performance Summary</h5>
+                  <div class="row">
+                    <div class="col-md-4">
+                      <div class="text-center p-3">
+                        <h6 class="text-muted">Conversion Rate</h6>
+                        <h4 id="conversion-rate">0%</h4>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="text-center p-3">
+                        <h6 class="text-muted">Data Time Window</h6>
+                        <h4>90 Minutes</h4>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="text-center p-3">
+                        <h6 class="text-muted">Status</h6>
+                        <span class="badge bg-success" id="status-badge">Active</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+                    <!-- Conversions Accordion -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <div class="card">
+                <div class="card-body">
+                  <h5 class="card-title">🎯 Recent Conversions</h5>
+                  
+                  <!-- Conversions Loading State -->
+                  <div id="conversions-loading" class="text-center my-4">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                      <span class="visually-hidden">Loading conversions...</span>
+                    </div>
+                    <p class="mt-2 text-muted small">Loading conversion data...</p>
+                  </div>
+
+                  <!-- Conversions Container -->
+                  <div id="conversions-container" class="d-none">
+                    <div class="accordion" id="conversionsAccordion"></div>
+                  </div>
+
+                  <!-- No Conversions State -->
+                  <div id="no-conversions" class="alert alert-info d-none" role="alert">
+                    <h6 class="alert-heading">No Conversions Found</h6>
+                    <p class="mb-0">This advertiser doesn't have any conversions yet. Conversions will appear here when they occur.</p>
+                  </div>
+
+                  <!-- Conversions Error State -->
+                  <div id="conversions-error" class="alert alert-warning d-none" role="alert">
+                    <h6 class="alert-heading">Conversion Data Unavailable</h6>
+                    <p class="mb-0">Unable to load conversion data. Please try refreshing the page.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+{% include 'partials/footer.html' %}
+
+<!-- Query Panel -->
+{% include 'partials/query_panel.html' %}
+
+<!-- Partial JavaScript -->
+<script src="/assets/js/partial-query-system.js"></script>
+<script src="/assets/js/partial-sidebar.js"></script>
+
+<!-- Advertiser Dashboard Specific JavaScript -->
+<script src="/assets/js/advertiser-dashboard.js"></script>
+
+</body>
+</html>
