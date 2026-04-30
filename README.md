@@ -19,6 +19,34 @@ This project also includes a WUI with views application to a number of distinct 
 - [wx.d Interface](#wxd-interface)
 - [Other Interfaces](#other-interfaces)
 - [Install](#install)
+
+## Deployment Options
+
+This demo supports two deployment modes:
+
+### 1. Single VM Deployment (Traditional)
+- Uses systemd services on RHEL 9.6
+- Suitable for local development and testing
+- See [Install](#install) section below
+
+### 2. Kubernetes Deployment (Production)
+- Deploys on IBM Cloud Kubernetes Service (IKS)
+- Production-ready with high availability
+- Automated scaling and orchestration
+- See [Kubernetes Deployment Guide](docs/KUBERNETES_DEPLOYMENT.md)
+
+**Quick Start (Kubernetes):**
+```bash
+./setup.sh --domain affiliate-junction \
+           --mission-control-license "YOUR_LICENSE" \
+           --phase all
+```
+
+For detailed Kubernetes deployment instructions, troubleshooting, and rollback procedures:
+- 📘 [Kubernetes Deployment Guide](docs/KUBERNETES_DEPLOYMENT.md)
+- 🔧 [Kubernetes Troubleshooting](docs/KUBERNETES_TROUBLESHOOTING.md)
+- ↩️ [Kubernetes Rollback Procedures](docs/KUBERNETES_ROLLBACK.md)
+
 - [Troubleshooting](#troubleshooting)
 
 ### Additional Documentation
