@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: truncate-tables
+  namespace: affiliate-junction
+  labels:
+    app.kubernetes.io/name: affiliate-junction
+    app.kubernetes.io/component: truncate-tables
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: affiliate-junction
+        app.kubernetes.io/component: truncate-tables
+    spec:
+      serviceAccountName: affiliate-junction-sa
+      restartPolicy: OnFailure
+      containers:
+        - name: truncate-tables
+          image: affiliate-junction:latest
+          imagePullPolicy: Always
+          command: ["python", "truncate_all_tables.py"]
+          env:
+            - name: CONFIG_PATH
+              value: /config/config.yaml
+            - name: HCD_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: affiliate-junction-secrets
+                  key: HCD_USERNAME
+            - name: HCD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: affiliate-junction-secrets
+                  key: HCD_PASSWORD
+            - name: PRESTO_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: affiliate-junction-secrets
+                  key: PRESTO_USERNAME
+            - name: PRESTO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: affiliate-junction-secrets
+                  key: PRESTO_PASSWORD
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+      volumes:
+        - name: config
+          configMap:
+            name: affiliate-junction-config
+
+# Made with Bob

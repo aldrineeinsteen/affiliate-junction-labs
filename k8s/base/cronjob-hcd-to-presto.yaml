@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hcd-to-presto
+  namespace: affiliate-junction
+  labels:
+    app.kubernetes.io/name: affiliate-junction
+    app.kubernetes.io/component: hcd-to-presto
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 300
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: affiliate-junction
+            app.kubernetes.io/component: hcd-to-presto
+        spec:
+          serviceAccountName: affiliate-junction-sa
+          restartPolicy: OnFailure
+          containers:
+            - name: hcd-to-presto
+              image: affiliate-junction:latest
+              imagePullPolicy: Always
+              command: ["python", "hcd_to_presto.py"]
+              env:
+                - name: CONFIG_PATH
+                  value: /config/config.yaml
+                - name: HCD_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: affiliate-junction-secrets
+                      key: HCD_USERNAME
+                - name: HCD_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: affiliate-junction-secrets
+                      key: HCD_PASSWORD
+                - name: PRESTO_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: affiliate-junction-secrets
+                      key: PRESTO_USERNAME
+                - name: PRESTO_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: affiliate-junction-secrets
+                      key: PRESTO_PASSWORD
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+              resources:
+                requests:
+                  memory: "512Mi"
+                  cpu: "250m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "500m"
+          volumes:
+            - name: config
+              configMap:
+                name: affiliate-junction-config
+
+# Made with Bob

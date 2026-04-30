@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: affiliate-junction
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - serviceaccount.yaml
+  - rbac.yaml
+  - deployment-web-ui.yaml
+  - service-web-ui.yaml
+  - job-populate-data.yaml
+  - job-truncate-tables.yaml
+  - cronjob-hcd-to-presto.yaml
+  - cronjob-presto-to-hcd.yaml
+  - cronjob-presto-insights.yaml
+  - cronjob-presto-cleanup.yaml
+
+commonLabels:
+  app.kubernetes.io/name: affiliate-junction
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: affiliate-junction
+    newName: affiliate-junction
+    newTag: latest
+
+# Made with Bob

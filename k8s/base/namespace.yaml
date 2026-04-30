@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: affiliate-junction
+  labels:
+    app.kubernetes.io/name: affiliate-junction
+    app.kubernetes.io/component: namespace
+
+# Made with Bob

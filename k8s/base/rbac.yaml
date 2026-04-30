@@ -1,0 +1,40 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: affiliate-junction-role
+  namespace: affiliate-junction
+  labels:
+    app.kubernetes.io/name: affiliate-junction
+    app.kubernetes.io/component: rbac
+rules:
+  # Allow reading ConfigMaps and Secrets
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list"]
+  # Allow creating and managing Jobs (for UI-triggered operations)
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create", "delete"]
+  # Allow reading pod logs for debugging
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: affiliate-junction-rolebinding
+  namespace: affiliate-junction
+  labels:
+    app.kubernetes.io/name: affiliate-junction
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: affiliate-junction-sa
+    namespace: affiliate-junction
+roleRef:
+  kind: Role
+  name: affiliate-junction-role
+  apiGroup: rbac.authorization.k8s.io
+
+# Made with Bob

@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: presto-cleanup
+  namespace: affiliate-junction
+  labels:
+    app.kubernetes.io/name: affiliate-junction
+    app.kubernetes.io/component: presto-cleanup
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 300
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: affiliate-junction
+            app.kubernetes.io/component: presto-cleanup
+        spec:
+          serviceAccountName: affiliate-junction-sa
+          restartPolicy: OnFailure
+          containers:
+            - name: presto-cleanup
+              image: affiliate-junction:latest
+              imagePullPolicy: Always
+              command: ["python", "presto_cleanup.py"]
+              env:
+                - name: CONFIG_PATH
+                  value: /config/config.yaml
+                - name: PRESTO_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: affiliate-junction-secrets
+                      key: PRESTO_USERNAME
+                - name: PRESTO_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: affiliate-junction-secrets
+                      key: PRESTO_PASSWORD
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "250m"
+          volumes:
+            - name: config
+              configMap:
+                name: affiliate-junction-config
+
+# Made with Bob
